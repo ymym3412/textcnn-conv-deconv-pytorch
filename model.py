@@ -46,7 +46,7 @@ class DeconvolutionDecoder(nn.Module):
         self.bn1 = nn.BatchNorm2d(600)
         self.deconvs2 = nn.ConvTranspose2d(600, 300, (2, 1), stride=2)
         self.bn2 = nn.BatchNorm2d(300)
-        self.deconvs3 = nn.ConvTranspose2d(300, 1, (2+1, self.embed.weight.size()[1]), stride=2)
+        self.deconvs3 = nn.ConvTranspose2d(300, 1, (2+2, self.embed.weight.size()[1]), stride=2)
 
         # weight initialize for conv_transpose layer
         for m in self.modules():

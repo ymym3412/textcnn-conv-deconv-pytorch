@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 
 import model
 from datasets import TextClassificationDataset, ToTensor
-from train import train
+from train import train_classification
 
 import argparse
 
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('-batch_size', type=int, default=64, help='batch size for training')
     parser.add_argument('-lr_decay_interval', type=int, default=20,
                         help='how many epochs to wait before decrease learning rate')
-    parser.add_argument('-log_interval', type=int, default=256,
+    parser.add_argument('-log_interval', type=int, default=16,
                         help='how many steps to wait before logging training status')
     parser.add_argument('-test_interval', type=int, default=100,
                         help='how many steps to wait before testing')
@@ -68,7 +68,7 @@ def main():
         decoder = torch.load(args.dec_snapshot)
         mlp = torch.load(args.mlp_snapshot)
 
-    train(data_loader, data_loader, encoder, decoder, mlp, args)
+    train_classification(data_loader, data_loader, encoder, decoder, mlp, args)
 
 if __name__ == '__main__':
     main()
