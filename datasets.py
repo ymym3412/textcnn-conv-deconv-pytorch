@@ -38,7 +38,6 @@ class HotelReviewsDataset(Dataset):
         self.word2index["<PAD>"] = self.n_words
         self.index2word[self.n_words] = "<PAD>"
         self.n_words += 1
-        print(self.index2word)
         temp_list = []
         for sentence in tqdm(self.data):
             if len(sentence) > self.sentence_len:

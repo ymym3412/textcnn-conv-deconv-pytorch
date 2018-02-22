@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import pickle
 from sumeval.metrics.rouge import RougeCalculator
 from sumeval.metrics.bleu import BLEUCalculator
+from hyperdash import Experiment
 
 import util
 
@@ -93,77 +94,82 @@ def train_classification(data_loader, dev_iter, encoder, decoder, mlp, args):
 
 
 def train_reconstruction(train_loader, test_loader, encoder, decoder, args):
-    lr = args.lr
-    encoder_opt = torch.optim.Adam(encoder.parameters(), lr=lr)
-    decoder_opt = torch.optim.Adam(decoder.parameters(), lr=lr)
+    exp = Experiment("Reconstruction Training")
+    try:
+        lr = args.lr
+        encoder_opt = torch.optim.Adam(encoder.parameters(), lr=lr)
+        decoder_opt = torch.optim.Adam(decoder.parameters(), lr=lr)
 
-    encoder.train()
-    decoder.train()
-    steps = 0
-    for epoch in range(1, args.epochs+1):
-        print("=======Epoch========")
-        print(epoch)
-        for batch in train_loader:
-            feature = Variable(batch)
-            if args.use_cuda:
-                encoder.cuda()
-                decoder.cuda()
-                feature = feature.cuda()
+        encoder.train()
+        decoder.train()
+        steps = 0
+        for epoch in range(1, args.epochs+1):
+            print("=======Epoch========")
+            print(epoch)
+            for batch in train_loader:
+                feature = Variable(batch)
+                if args.use_cuda:
+                    encoder.cuda()
+                    decoder.cuda()
+                    feature = feature.cuda()
 
-            encoder_opt.zero_grad()
-            decoder_opt.zero_grad()
+                encoder_opt.zero_grad()
+                decoder_opt.zero_grad()
 
-            h = encoder(feature)
-            prob = decoder(h)
-            reconstruction_loss = compute_cross_entropy(prob, feature)
-            reconstruction_loss.backward()
-            encoder_opt.step()
-            decoder_opt.step()
+                h = encoder(feature)
+                prob = decoder(h)
+                reconstruction_loss = compute_cross_entropy(prob, feature)
+                reconstruction_loss.backward()
+                encoder_opt.step()
+                decoder_opt.step()
 
-            steps += 1
-            print("Epoch: {}".format(epoch))
-            print("Steps: {}".format(steps))
-            print("Loss: {}".format(reconstruction_loss.data[0]))
-            # check reconstructed sentence
-            if steps % args.log_interval == 0:
-                print("Test!!")
-                input_data = feature[0]
-                single_data = prob[0]
-                _, predict_index = torch.max(single_data, 1)
-                input_sentence = util.transform_id2word(input_data.data, train_loader.dataset.index2word, lang="en")
-                predict_sentence = util.transform_id2word(predict_index.data, train_loader.dataset.index2word, lang="en")
-                print("Input Sentence:")
-                print(input_sentence)
-                print("Output Sentence:")
-                print(predict_sentence)
+                steps += 1
+                print("Epoch: {}".format(epoch))
+                print("Steps: {}".format(steps))
+                print("Loss: {}".format(reconstruction_loss.data[0] / args.sentence_len))
+                exp.metric("Loss", reconstruction_loss.data[0] / args.sentence_len)
+                # check reconstructed sentence
+                if steps % args.log_interval == 0:
+                    print("Test!!")
+                    input_data = feature[0]
+                    single_data = prob[0]
+                    _, predict_index = torch.max(single_data, 1)
+                    input_sentence = util.transform_id2word(input_data.data, train_loader.dataset.index2word, lang="en")
+                    predict_sentence = util.transform_id2word(predict_index.data, train_loader.dataset.index2word, lang="en")
+                    print("Input Sentence:")
+                    print(input_sentence)
+                    print("Output Sentence:")
+                    print(predict_sentence)
 
-        if epoch % args.test_interval == 0:
-            eval_reconstruction(encoder, decoder, test_loader, args)
+            if steps % args.test_interval == 0:
+                eval_reconstruction(encoder, decoder, test_loader, args)
 
 
-        if epoch % args.lr_decay_interval == 0:
-            # decrease learning rate
-            lr = lr / 5
-            encoder_opt = torch.optim.Adam(encoder.parameters(), lr=lr)
-            decoder_opt = torch.optim.Adam(decoder.parameters(), lr=lr)
-            encoder.train()
-            decoder.train()
+            if epoch % args.lr_decay_interval == 0:
+                # decrease learning rate
+                lr = lr / 5
+                encoder_opt = torch.optim.Adam(encoder.parameters(), lr=lr)
+                decoder_opt = torch.optim.Adam(decoder.parameters(), lr=lr)
+                encoder.train()
+                decoder.train()
 
-        if epoch % args.save_interval == 0:
-            util.save_models(encoder, args.save_dir, "encoder", steps)
-            util.save_models(decoder, args.save_dir, "decoder", steps)
+            if epoch % args.save_interval == 0:
+                util.save_models(encoder, args.save_dir, "encoder", steps)
+                util.save_models(decoder, args.save_dir, "decoder", steps)
 
-    # finalization
-    # save vocabulary
-    with open("word2index", "wb") as w2i, open("index2word", "wb") as i2w:
-        pickle.dump(train_loader.dataset.word2index, w2i)
-        pickle.dump(train_loader.dataset.index2word, i2w)
+        # finalization
+        # save vocabulary
+        with open("word2index", "wb") as w2i, open("index2word", "wb") as i2w:
+            pickle.dump(train_loader.dataset.word2index, w2i)
+            pickle.dump(train_loader.dataset.index2word, i2w)
 
-    # save models
-    util.save_models(encoder, args.save_dir, "encoder", "final")
-    util.save_models(decoder, args.save_dir, "decoder", "final")
+        # save models
+        util.save_models(encoder, args.save_dir, "encoder", "final")
+        util.save_models(decoder, args.save_dir, "decoder", "final")
 
-    print("Finish!!!")
+        print("Finish!!!")
+    finally:
+        exp.end()
 
 
 def compute_cross_entropy(log_prob, target):
@@ -187,7 +193,7 @@ def eval_classification(encoder, mlp, feature, label):
 
 
 def eval_reconstruction(encoder, decoder, data_iter, args):
-    print("Eval")
+    print("=================Eval======================")
     encoder.eval()
     decoder.eval()
     avg_loss = 0
@@ -195,7 +201,7 @@ def eval_reconstruction(encoder, decoder, data_iter, args):
     rouge_2 = 0.0
     index2word = data_iter.dataset.index2word
     for batch in data_iter:
-        feature = Variable(batch)
+        feature = Variable(batch, requires_grad=False)
         if args.use_cuda:
             feature = feature.cuda()
         h = encoder(feature)
@@ -209,9 +215,11 @@ def eval_reconstruction(encoder, decoder, data_iter, args):
         reconstruction_loss = compute_cross_entropy(prob, feature)
         avg_loss += reconstruction_loss.data[0]
     avg_loss = avg_loss / len(data_iter.dataset)
+    avg_loss = avg_loss / args.sentence_len
     rouge_1 = rouge_1 / len(data_iter.dataset)
     rouge_2 = rouge_2 / len(data_iter.dataset)
     print("Evaluation - loss: {}  Rouge1: {}    Rouge2: {}".format(avg_loss, rouge_1, rouge_2))
+    print("===============================================================")
     encoder.train()
     decoder.train()
 
