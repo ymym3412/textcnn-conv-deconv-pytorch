@@ -5,14 +5,14 @@ from torch.autograd import Variable
 import math
 
 class ConvolutionEncoder(nn.Module):
-    def __init__(self, embedding):
+    def __init__(self, embedding, sentence_len, filter_size, filter_shape, latent_size):
         super(ConvolutionEncoder, self).__init__()
         self.embed = embedding
-        self.convs1 = nn.Conv2d(1, 300, (2, self.embed.weight.size()[1]), stride=2)
-        self.bn1 = nn.BatchNorm2d(300)
-        self.convs2 = nn.Conv2d(300, 600, (2, 1), stride=2)
-        self.bn2 = nn.BatchNorm2d(600)
-        self.convs3 = nn.Conv2d(600, 500, (6, 1), stride=2)
+        self.convs1 = nn.Conv2d(1, filter_size, (filter_shape, self.embed.weight.size()[1]), stride=2)
+        self.bn1 = nn.BatchNorm2d(filter_size)
+        self.convs2 = nn.Conv2d(filter_size, filter_size * 2, (filter_shape, 1), stride=2)
+        self.bn2 = nn.BatchNorm2d(filter_size * 2)
+        self.convs3 = nn.Conv2d(filter_size * 2, latent_size, (sentence_len, 1), stride=2)
 
         # weight initialize for conv layer
         for m in self.modules():
@@ -38,15 +38,15 @@ class ConvolutionEncoder(nn.Module):
 
 
 class DeconvolutionDecoder(nn.Module):
-    def __init__(self, embedding, tau):
+    def __init__(self, embedding, tau, sentence_len, filter_size, filter_shape, latent_size):
         super(DeconvolutionDecoder, self).__init__()
         self.tau = tau
         self.embed = embedding
-        self.deconvs1 = nn.ConvTranspose2d(500, 600, (6, 1), stride=2)
-        self.bn1 = nn.BatchNorm2d(600)
-        self.deconvs2 = nn.ConvTranspose2d(600, 300, (2, 1), stride=2)
-        self.bn2 = nn.BatchNorm2d(300)
-        self.deconvs3 = nn.ConvTranspose2d(300, 1, (2+2, self.embed.weight.size()[1]), stride=2)
+        self.deconvs1 = nn.ConvTranspose2d(latent_size, filter_size * 2, (sentence_len, 1), stride=2)
+        self.bn1 = nn.BatchNorm2d(filter_size * 2)
+        self.deconvs2 = nn.ConvTranspose2d(filter_size * 2, filter_size, (filter_shape, 1), stride=2)
+        self.bn2 = nn.BatchNorm2d(filter_size)
+        self.deconvs3 = nn.ConvTranspose2d(filter_size, 1, (filter_shape, self.embed.weight.size()[1]), stride=2)
 
         # weight initialize for conv_transpose layer
         for m in self.modules():
