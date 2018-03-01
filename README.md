@@ -1,6 +1,7 @@
-# textcnn-conv-deconv-pytorch
+# [WIP]textcnn-conv-deconv-pytorch
 Text convolution-deconvolution auto-encoder and classification model in PyTorch.  
-PyTorch implementation of [Deconvolutional Paragraph Representation Learning](https://arxiv.org/abs/1708.04729v3) described in NIPS 2017.
+PyTorch implementation of [Deconvolutional Paragraph Representation Learning](https://arxiv.org/abs/1708.04729v3) described in NIPS 2017.  
+**This repository is still developing. **
 
 ## Requirement
 - Python 3
